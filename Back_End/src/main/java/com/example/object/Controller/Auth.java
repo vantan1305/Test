@@ -2,7 +2,7 @@ package com.example.object.Controller;
 
 import com.example.object.Entity.Employee;
 import com.example.object.Payload.Request.LoginRequest;
-import com.example.object.Payload.Request.SignupRequest;
+import com.example.object.Payload.Response.JwtResponse;
 import com.example.object.Payload.Response.MessageResponse;
 import com.example.object.Repository.EmployeeRepository;
 import com.example.object.Sercurity.JWT.JwtUtils;
@@ -21,7 +21,7 @@ import javax.validation.Valid;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 public class Auth {
     @Autowired
     AuthenticationManager authenticationManager;
@@ -32,32 +32,30 @@ public class Auth {
     @Autowired
     JwtUtils jwtUtils;
     @PostMapping("/signin")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(),loginRequest.getPassword()));
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.CreateToken(authentication);
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        return new ResponseEntity<>(jwt,HttpStatus.OK);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        return ResponseEntity.ok(new JwtResponse(jwt,
+                userDetails.getEmployee().getID(),
+                userDetails.getEmployee().getUsername(),
+                userDetails.getEmployee().getRole()));
     }
     @PostMapping("/signup")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-        if (employeeRepository.existsByUsername(signUpRequest.getUsername())) {
+    public ResponseEntity<?> registerUser(@RequestBody Employee employee) {
+        if (employeeRepository.existsByUsername(employee.getUsername())) {
             return ResponseEntity
                     .badRequest()
-                    .body(new MessageResponse("Error: Username is already taken!"));
+                    .body(new MessageResponse("Error:Username is already taken!"));
         }
-        if (employeeRepository.existsByEmail(signUpRequest.getEmail())) {
+        if (employeeRepository.existsByEmail(employee.getEmail())) {
             return ResponseEntity
                     .badRequest()
-                    .body(new MessageResponse("Error: Email is already in use!"));
+                    .body(new MessageResponse("Error:Email is already in use!"));
         }
-        Employee employee = new Employee(
-                signUpRequest.getEmail(),
-                signUpRequest.getUsername(),
-                encoder.encode(signUpRequest.getPassword()),
-                signUpRequest.getRole()
-        );
+        employee.setPassword(encoder.encode(employee.getPassword()));
         employeeRepository.save(employee);
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }
